@@ -5,33 +5,28 @@
 <h1 align="center">Overleaf Desktop</h1>
 
 <p align="center">
-  A native macOS app for syncing <a href="https://www.overleaf.com">Overleaf</a> projects to your local filesystem via Overleaf's Git bridge. Edit <code>.tex</code> files in your editor of choice; sync manually with one-click Pull / Push, or enable near-real-time auto-sync (~30&nbsp;s end-to-end).
+  Native macOS app that syncs <a href="https://www.overleaf.com">Overleaf</a> projects to your local filesystem via Overleaf's Git bridge. Edit <code>.tex</code> files in any editor; sync manually or with ~30&nbsp;s near-real-time auto-sync.
 </p>
 
-Built with SwiftUI. No Electron, no embedded browser — just a thin native shell over `git`.
+<p align="center">
+  Built with SwiftUI. No Electron, no embedded browser — a thin native shell over <code>git</code>.
+</p>
 
 ## Why this exists
 
-Overleaf has no official desktop client. You can `git clone` a project from the Git bridge and edit locally, but the manual Pull / Push grind kills the workflow — you forget to pull, you forget to push, your coauthor's edits collide with yours, and after one bad merge you give up and go back to the web editor.
+Manual `git clone` + Pull / Push kills the workflow — you forget to sync, your coauthor's edits collide with yours, you give up and go back to the web editor. This app handles the sync so you can stay in your editor.
 
-The point of this app isn't really the Git wrapper. It's the **near-real-time sync** that makes local editing viable when you're collaborating:
-
-- **Auto-sync, no buttons.** Save your `.tex` and ~3 seconds later it's on overleaf.com. Your coauthor's web edits appear on your disk within ~30 seconds. You stop thinking about syncing.
-- **Conflict UI.** The rare same-line conflict surfaces as an orange badge with a one-click resolution flow, instead of a raw `git rebase` mess.
-- **Edit anywhere.** Cursor, Claude Code, VS Code, Vim, TeXShop — local files mean any editor with any extensions and keybindings, including AI tab-autocomplete that the web editor doesn't have.
-- **Offline editing.** No connection on a flight? Keep editing. Auto-push catches up on reconnect.
-- **Your own tooling on top.** Local `latexmk`, your own grep, your own private git branch alongside Overleaf's history.
-
-A `git clone` + a cron job could replicate the basics. The auto-sync timing, per-project locking, conflict reconciliation, and macOS Keychain integration are what make this feel like a desktop app instead of a fragile shell script.
+- **Auto-sync, no buttons.** Save your `.tex` and ~3 s later it's on overleaf.com. Coauthor's web edits appear on your disk within ~30 s.
+- **Conflict UI.** Same-line conflicts surface as an orange badge with a one-click resolution flow, not a raw `git rebase` mess.
+- **Edit anywhere.** Cursor, Claude Code, VS Code, Vim — including AI tab-autocomplete the web editor doesn't have.
+- **Offline editing.** Auto-push catches up on reconnect.
 
 ## Requirements
 
-- **macOS 14 (Sonoma) or newer**
-- **A paid Overleaf plan** (Standard, Professional, or institutional Premium) — the Git bridge is not available on free accounts
-- **Xcode Command Line Tools** (`xcode-select --install`) — Swift 5.9+ and `git` come bundled
+- macOS 14 (Sonoma) or newer
+- A **paid** Overleaf plan (Standard, Professional, or institutional Premium) — the Git bridge isn't on free accounts
+- Xcode Command Line Tools (`xcode-select --install`); full Xcode is not required
 - An Overleaf [Git authentication token](https://www.overleaf.com/user/settings)
-
-Full Xcode is **not** required. The build uses Swift Package Manager and a shell script to assemble the `.app` bundle.
 
 ## Install
 
@@ -41,205 +36,111 @@ cd Overleaf-Desktop
 ./build.sh run
 ```
 
-`build.sh` produces `OverleafDesktop.app` in the project root. Drag it to `/Applications` if you want it in Spotlight permanently.
-
-Build options:
-
-```sh
-./build.sh         # release build
-./build.sh debug   # debug build
-./build.sh run     # release build, then launch
-```
+`build.sh` produces `OverleafDesktop.app` in the project root. Drag it to `/Applications` to keep it in Spotlight.
 
 ## First-time setup
 
-1. Generate a Git authentication token at [overleaf.com → Account Settings → Git authentication tokens](https://www.overleaf.com/user/settings).
-2. Open Overleaf Desktop, press `⌘,` to open Settings, and paste the token. It is stored in the macOS Keychain.
-3. Press `⌘N` to add a project. Paste any Overleaf project URL — for example `https://www.overleaf.com/project/65abc…`. The app extracts the project ID, clones the repo to `~/Overleaf/<name>/`, and tracks it.
+1. Generate a token at [overleaf.com → Account Settings → Git authentication tokens](https://www.overleaf.com/user/settings).
+2. Open the app, press `⌘,`, paste the token (stored in macOS Keychain).
+3. Press `⌘N`, paste an Overleaf project URL. The app clones to `~/Overleaf/<name>/`.
 
 ## Usage
 
-Each tracked project shows in the main list with:
+Each project row shows status (`clean` / `uncommitted` / `conflict`), with **Pull** and **Push** buttons and a More menu for Finder, default editor, and removal.
 
-- **Status badge** — `clean` / `uncommitted`, plus `↑N` / `↓N` for ahead/behind upstream
-- **Conflict badge** — orange `conflict` button appears when a pull lands in a rebase conflict; click it to open the resolution sheet
-- **Pull** — `git pull --rebase --autostash`
-- **Push** — stages all changes, commits with `"Update from Overleaf Desktop"`, then pushes
-- **More menu** — open folder in Finder, open main `.tex` in default editor, open project in browser, resolve conflict, remove from app
+Manual Pull / Push always works. In **Settings**, you can also enable:
 
-Settings cover the Git authentication token, manual sync defaults, and the real-time auto-sync toggles described below.
+- **Pull automatically in the background** — `git pull --rebase --autostash` on every project at a configurable interval (10–600 s, default 30).
+- **Push automatically after each save** — file watcher debounces 3 s after the last save, then commits and pushes. On non-fast-forward rejection it pulls and retries once.
 
-## Real-time sync
+Both default to **off**. With both on at 30 s:
 
-Manual Pull / Push always works, but if you're collaborating with coauthors who keep editing on overleaf.com, you can enable two background features that keep the local copy and the web copy converged automatically:
+- Local edit → overleaf.com: 3–5 s
+- Coauthor's web edit → your disk: up to 30 s
 
-- **Pull automatically in the background** — runs `git pull --rebase --autostash` on every project at a configurable interval (10–600 s, default 30). Skips any project that's already busy or in conflict.
-- **Push automatically a few seconds after each save** — a per-project `FSEventsWatcher` watches the project tree (ignoring `.git/`), debounces 3 s after the last save, then commits and pushes. If the push is rejected as non-fast-forward (a coauthor pushed in the meantime), it pulls and retries once.
+### Conflicts
 
-Both default to **off** so the manual workflow is unchanged until you opt in. With both on at 30 s, end-to-end latency between you and your coauthors is roughly:
+When a pull hits a rebase conflict, the row gets an orange **conflict** badge and auto-sync pauses for that project. Click the badge → resolution sheet lists conflicted files → **Open** each, edit normally (look for `<<<<<<<` / `=======` / `>>>>>>>` markers), then **Mark Resolved & Continue** or **Abort Pull**.
 
-- **Local edit → overleaf.com**: 3–5 s (auto-push debounce + push)
-- **Coauthor's web edit → your disk**: up to 30 s (auto-pull tick)
+## Editor pairing
 
-This is **not** Overleaf-web's sub-second collaborative editing — that uses an Operational Transform protocol over WebSockets that isn't exposed via the Git bridge. Replicating it would mean reverse-engineering an undocumented protocol. For asynchronous research writing, the 30 s ceiling is invisible; for two people typing in the same paragraph at the same time, it isn't a substitute for the web editor.
+The point of going local is using an editor with AI. Recommended combo:
 
-### Conflict handling
+- **[Cursor](https://www.cursor.com)** for line-of-sight editing — Tab autocomplete on math notation and `\cite{}` keys, `⌘K` for "tighten this paragraph". Open with `cursor ~/Overleaf/<paper>`. Add **LaTeX Workshop** for error parsing and optional PDF preview (needs MacTeX, ~4 GB; skip if you compile on overleaf.com).
+- **[Claude Code](https://claude.com/claude-code)** for project-wide ops — `cd ~/Overleaf/<paper> && claude`, then ask things like *"audit references.bib for duplicate DOIs"* or *"find every `\ref{}` whose label is never defined"*. Trivial for an agent, tedious in any editor.
 
-When auto-pull (or manual Pull) lands in a rebase conflict because both sides edited the same lines:
-
-1. The project row gets an orange **conflict** badge.
-2. Auto-pull and auto-push both pause for that project until the conflict is resolved.
-3. Click the badge → resolution sheet lists conflicted files. Click **Open** on each to edit it (find `<<<<<<<`, `=======`, `>>>>>>>` markers, choose the version you want, save).
-4. Click **Mark Resolved & Continue** to run `git rebase --continue`, or **Abort Pull** to discard the pull attempt and keep your local changes.
-
-The app refuses to auto-anything on a conflicted project until you've explicitly resolved or aborted, so it can't compound the problem on its own.
-
-## Recommended editing workflow
-
-Overleaf Desktop only handles sync — you bring your own editor. The combination that makes this app worth using over the Overleaf web UI is **AI-assisted local editing**. Two tools work especially well together:
-
-### Cursor (for day-to-day writing)
-
-[Cursor](https://www.cursor.com) is a VS Code fork with built-in AI. Tab-autocomplete is the killer feature for LaTeX — it picks up your math notation, `\cite{}` keys, and repetitive environments and completes them naturally. `⌘K` inline edit handles "tighten this paragraph" / "convert this list to an `itemize`" without leaving the line.
-
-```sh
-cursor ~/Overleaf/<your-project>
-```
-
-Recommended extensions:
-
-- **LaTeX Workshop** — syntax, error parsing, optional live PDF preview (the preview needs a local TeX install like [MacTeX](https://www.tug.org/mactex/), ~4 GB; skip it if you'd rather just use Overleaf's web compiler)
-- **LTeX** or **Grammarly** — grammar/style on the prose itself
-
-### Claude Code (for cross-file work)
-
-[Claude Code](https://claude.com/claude-code) is an agentic CLI that's better than any IDE chat for tasks that span the whole project. Open a terminal in the project root:
-
-```sh
-cd ~/Overleaf/<your-project>
-claude
-```
-
-Then ask things like:
-
-- *"Rewrite section 3 to match the tone of section 2."*
-- *"Find every `\ref{}` whose label is never defined, and every `\label{}` that's never referenced."*
-- *"Audit `references.bib` for duplicate entries and suspicious DOIs."*
-- *"Convert all `\textbf{}` emphasis to `\emph{}`, but not inside figure captions."*
-- *"Move every figure into a `figures/` subfolder and update the `\includegraphics` paths."*
-
-These are tedious in a normal editor and trivial for an agent loop.
-
-### Putting it together
-
-A typical writing session:
-
-1. **Pull** in Overleaf Desktop to grab any web edits.
-2. `cursor ~/Overleaf/<paper>` and write with Tab + `⌘K`.
-3. Split terminal → `claude` for any multi-file rewrite.
-4. **Push** in Overleaf Desktop when you stop for the day.
-
-### One real gotcha
-
-If you edit in **both** Cursor/Claude Code and the Overleaf web UI in the same session, you will hit merge conflicts on the next Pull. Pick one source of truth per session — either close the web tab while writing locally, or skip the local edit and use the web editor that day. Solo workflows rarely run into this once you internalize it.
-
-### What to skip
-
-- **TeXShop / vanilla VS Code** — fine editors, but you lose the AI assist that's the whole reason to sync locally. If you wanted a pure native LaTeX editor with no AI, this app's value proposition is thin.
-- **Mixing AI tools mid-document** — Cursor and Claude Code both work great, but flipping between them on the same paragraph produces inconsistent style. Use Cursor for prose-level editing, Claude Code for project-level operations, and don't cross the streams.
+Don't edit in both Cursor / Claude Code and the Overleaf web UI in the same session, or you'll fight rebases.
 
 ## How it works
 
 ```
 +--------------------------------+
 |  SwiftUI views                 |
-|  Projects / Settings /         |
-|  Add Project / Conflict sheet  |
+|  Projects / Settings / Conflict|
 +--------------+-----------------+
                |
                v
 +--------------------------------+        +------------------------+
 |  AutoSyncManager               |<------>| FSEventsWatcher        |
-|  - per-project lock            |        | per-project, debounced |
-|  - background pull timer       |        | (auto-push trigger)    |
-|  - SyncState (busy/conflict)   |        +------------------------+
+|  per-project lock,             |        | per-project, debounced |
+|  background pull timer,        |        | (auto-push trigger)    |
+|  SyncState                     |        +------------------------+
 +--------------+-----------------+
                |
                v
 +--------------------------------+        +------------------------+
 |  GitService                    |<------>| Overleaf Git bridge    |
-|  - shells to /usr/bin/git      |        |  git.overleaf.com      |
-|  - GIT_ASKPASS for auth        |        +------------------------+
-|  - rebase continue / abort     |
-+--------------+-----------------+
+|  /usr/bin/git via GIT_ASKPASS  |        |  git.overleaf.com      |
++--------------+-----------------+        +------------------------+
                |
                v
-+--------------------------------+        +------------------------+
-|  ProjectStore (JSON list)      |<------>| ~/Library/Application  |
-|  KeychainService (token)       |        |  Support + Keychain    |
-+--------------------------------+        +------------------------+
++--------------------------------+
+|  ProjectStore + KeychainService|
++--------------------------------+
 ```
 
-Auth uses `GIT_ASKPASS` rather than embedding the token in URLs or in `git config`. For each git operation, the app:
-
-1. Writes a short shell script to a temp file (mode `0700`) that echoes `$OVERLEAF_GIT_TOKEN`.
-2. Runs `git` with `GIT_ASKPASS=<that path>` and `OVERLEAF_GIT_TOKEN=<token from Keychain>` in the environment.
-3. Deletes the temp script.
-
-The token never touches `argv`, the URL, the shell history, or any persistent config file outside the Keychain.
+Auth uses `GIT_ASKPASS`: a temp shell script (mode `0700`) that prints the token from an env var, set up per-operation and deleted after. The token never touches `argv`, URLs, shell history, or persistent config — only the macOS Keychain.
 
 ## Project layout
 
 ```
 overleaf-desktop/
 ├── Package.swift
-├── build.sh                          # builds + assembles .app bundle
+├── build.sh
 └── Sources/OverleafDesktop/
-    ├── OverleafDesktopApp.swift      # @main entry, menu commands
-    ├── Models/
-    │   ├── Project.swift
-    │   └── ProjectStore.swift
+    ├── OverleafDesktopApp.swift
+    ├── Models/{Project, ProjectStore}.swift
     ├── Services/
     │   ├── KeychainService.swift
     │   ├── GitService.swift
     │   ├── OverleafURLParser.swift
-    │   ├── AutoSyncManager.swift     # background pull + auto-push controller
+    │   ├── AutoSyncManager.swift     # auto-sync controller
     │   └── FSEventsWatcher.swift     # debounced fs watcher
-    ├── Views/
-    │   ├── ContentView.swift
-    │   ├── ProjectsView.swift
-    │   ├── AddProjectView.swift
-    │   ├── SettingsView.swift
-    │   └── ConflictResolutionView.swift
-    └── Resources/
-        └── Info.plist
+    └── Views/
+        ├── ContentView.swift
+        ├── ProjectsView.swift
+        ├── AddProjectView.swift
+        ├── SettingsView.swift
+        └── ConflictResolutionView.swift
 ```
 
 ## Known limitations
 
-- **No project-list discovery.** Overleaf does not expose a public "list my projects" API, so projects are added one URL at a time. Keep an Overleaf tab open to copy URLs from.
-- **Generic commit messages.** Manual push uses `"Update from Overleaf Desktop"`; auto-push uses `"Auto-sync from Overleaf Desktop"`. If you want per-push messages, edit the relevant action in `AutoSyncManager.swift`.
-- **Embedded git worktrees are skipped.** Claude Code's `.claude/worktrees/...`, git submodules without a `.gitmodules` entry, and any other directory containing a nested `.git` are excluded from `git add -A`, so they're never committed and pushed to Overleaf. The "uncommitted" badge may persist for those untracked dirs — that's expected. Add them to `.gitignore` if you want a clean status.
-- **No local PDF compilation.** Use Overleaf's web compiler, or run `latexmk` locally if you have a TeX install.
-- **Ad-hoc code signing.** The build script signs the app with `codesign --sign -`. Gatekeeper may warn on first launch — right-click → Open to bypass. For distribution outside your own machine, you'll need a Developer ID.
-- **Near-real-time, not real-time.** Auto-sync is ~30 s end-to-end via Git. Overleaf-web's sub-second collaborative editing uses an OT-over-WebSocket protocol that isn't exposed publicly; replicating it is out of scope.
+- **No project-list discovery.** Overleaf has no "list my projects" API, so projects are added one URL at a time.
+- **Embedded git worktrees skipped.** Directories containing a nested `.git` (Claude Code worktrees, submodules) are excluded from commits. Add to `.gitignore` for a clean status.
+- **No local PDF compilation.** Use Overleaf's web compiler, or run `latexmk` locally.
+- **Ad-hoc code signing.** Gatekeeper may warn on first launch — right-click → Open. For distribution to others, you'd need a Developer ID + notarization.
+- **Near-real-time, not real-time.** Overleaf-web's sub-second collaborative editing uses an OT-over-WebSocket protocol not exposed via the Git bridge.
 
-## Roadmap ideas
+## Roadmap
 
 Open to PRs:
 
-- Per-push commit messages (prompt on manual Push, leave auto-push generic)
-- Per-project sync overrides (e.g. disable auto-sync on a single noisy project)
+- Per-push commit messages (prompt on manual Push)
+- Per-project sync overrides (disable auto-sync on noisy projects)
 - Diff preview before auto-push fires
-- Menu-bar mode (run in the background with a status icon, no main window)
-- Project-list scraping via embedded WKWebView (best-effort; may break when Overleaf changes their UI)
+- Menu-bar mode
 - Linux / Windows ports (would need a non-SwiftUI rewrite)
-
-Already shipped:
-
-- ~~File watcher for auto-push on save~~ ✓ v0.2.0
-- ~~Background auto-pull on a timer~~ ✓ v0.2.0
-- ~~Conflict resolution UI~~ ✓ v0.2.0
 
 ## Contributing
 
