@@ -136,11 +136,11 @@ overleaf-desktop/
 
 Open to PRs:
 
-- Per-push commit messages (prompt on manual Push)
-- Per-project sync overrides (disable auto-sync on noisy projects)
-- Diff preview before auto-push fires
-- Menu-bar mode
-- Linux / Windows ports (would need a non-SwiftUI rewrite)
+- [ ] Per-push commit messages (prompt on manual Push)
+- [ ] Per-project sync overrides (disable auto-sync on noisy projects)
+- [ ] Diff preview before auto-push fires
+- [ ] Menu-bar mode
+- [ ] Linux / Windows ports (would need a non-SwiftUI rewrite)
 
 ## Contributing
 
